@@ -1,0 +1,8 @@
+compile
+console
+test
+eclipsify
+sbt eclipse
+eclipse
+test
+submit apnoob.13@gmail.com GuJqNyhZFx
