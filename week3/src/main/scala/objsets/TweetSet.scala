@@ -38,24 +38,23 @@ abstract class TweetSet {
   /**
    * This method takes a predicate and returns a subset of all the elements
    * in the original set for which the predicate is true.
-   *
-   * Question: Can we implment this method here, or should it remain abstract
-   * and be implemented in the subclasses?
    */
-  def filter(p: Tweet => Boolean): TweetSet = ???
+  def filter(p: Tweet => Boolean): TweetSet =
+    filterAcc(p, new Empty)
 
   /**
-   * This is a helper method for `filter` that propagetes the accumulated tweets.
+   * This is a helper method for `filter` that propagates the accumulated tweets.
    */
   def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet
 
   /**
    * Returns a new `TweetSet` that is the union of `TweetSet`s `this` and `that`.
    *
-   * Question: Should we implment this method here, or should it remain abstract
-   * and be implemented in the subclasses?
+   * Implemented separately for individual classes.
    */
-   def union(that: TweetSet): TweetSet = ???
+  def union(that: TweetSet): TweetSet
+
+  def isEmpty: Boolean
 
   /**
    * Returns the tweet from this set which has the greatest retweet count.
@@ -63,10 +62,9 @@ abstract class TweetSet {
    * Calling `mostRetweeted` on an empty set should throw an exception of
    * type `java.util.NoSuchElementException`.
    *
-   * Question: Should we implment this method here, or should it remain abstract
-   * and be implemented in the subclasses?
+   * Implemented individually.
    */
-  def mostRetweeted: Tweet = ???
+  def mostRetweeted: Tweet
 
   /**
    * Returns a list containing all tweets of this set, sorted by retweet count
@@ -74,11 +72,10 @@ abstract class TweetSet {
    * have the highest retweet count.
    *
    * Hint: the method `remove` on TweetSet will be very useful.
-   * Question: Should we implment this method here, or should it remain abstract
-   * and be implemented in the subclasses?
+   *
+   * Implemented individually.
    */
-  def descendingByRetweet: TweetList = ???
-
+  def descendingByRetweet: TweetList
 
   /**
    * The following methods are already implemented
@@ -110,9 +107,15 @@ abstract class TweetSet {
 
 class Empty extends TweetSet {
 
-  def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = ???
+  def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = acc
 
+  def union(that: TweetSet) = that
 
+  def descendingByRetweet: TweetList = Nil
+
+  def mostRetweeted: Tweet = throw new NoSuchElementException("Empty set")
+
+  def isEmpty = true
   /**
    * The following methods are already implemented
    */
@@ -128,8 +131,36 @@ class Empty extends TweetSet {
 
 class NonEmpty(elem: Tweet, left: TweetSet, right: TweetSet) extends TweetSet {
 
-  def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = ???
+  def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = {
+    val leftside = left.filterAcc(p, acc)
+    val rightside = right.filterAcc(p, leftside)
 
+    if (p(elem)) rightside.incl(elem) else rightside
+
+  }
+
+  def union(that: TweetSet) =
+    filterAcc((t: Tweet) => !that.contains(t), that)
+
+  def isEmpty = false
+
+  def mostRetweeted: Tweet = {
+    def greater(first: Tweet, second: Tweet): Tweet =
+      if (first.retweets > second.retweets) first else second
+
+    if (left.isEmpty && right.isEmpty) elem
+    else if (left.isEmpty && !right.isEmpty) greater(elem, right.mostRetweeted)
+    else if (!left.isEmpty && right.isEmpty) greater(elem, left.mostRetweeted)
+    else {
+      val current = greater(left.mostRetweeted, right.mostRetweeted)
+      greater(elem, current)
+    }
+  }
+
+  def descendingByRetweet: TweetList = {
+    val t = this.mostRetweeted
+    new Cons(t, this.remove(t).descendingByRetweet)
+  }
 
   /**
    * The following methods are already implemented
@@ -179,19 +210,26 @@ class Cons(val head: Tweet, val tail: TweetList) extends TweetList {
   def isEmpty = false
 }
 
-
 object GoogleVsApple {
   val google = List("android", "Android", "galaxy", "Galaxy", "nexus", "Nexus")
   val apple = List("ios", "iOS", "iphone", "iPhone", "ipad", "iPad")
+  
+  def predicate(list: List[String]): Tweet => Boolean = {
+    def inside(t: Tweet): Boolean =
+      list.exists(e => t.text.contains(e))
+      
+    inside
+  }
+    
 
-  lazy val googleTweets: TweetSet = ???
-  lazy val appleTweets: TweetSet = ???
+  lazy val googleTweets: TweetSet = TweetReader.allTweets.filter((t:Tweet) => (google.exists(el => t.text.contains(el))))
+  lazy val appleTweets: TweetSet = TweetReader.allTweets.filter((t:Tweet) => (apple.exists(el => t.text.contains(el))))
 
   /**
    * A list of all tweets mentioning a keyword from either apple or google,
    * sorted by the number of retweets.
    */
-  lazy val trending: TweetList = ???
+  lazy val trending: TweetList = googleTweets.union(appleTweets).descendingByRetweet
 }
 
 object Main extends App {
